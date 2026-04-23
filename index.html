@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Time Traveller's Clock</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff;
+            color: #00ff41;
+            font-family: 'Courier New', Courier, monospace;
+            cursor: none; 
+            overflow-x: hidden;
+        }
+    
+        #clock-container {
+            display: grid;
+            /* This ensures we have a flexible number of columns */
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            /* This ensures every row created is exactly 50vh tall */
+            grid-auto-rows: 50vh; 
+            gap: 10px;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+    
+        .clock-card {
+            border: 1px solid #00ff41;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 255, 65, 0.05);
+            text-align: center;
+            height: 100%; /* Fill the 50vh row height */
+        }
+    
+        /* The Present Time Red Style */
+        .present-time {
+            color: #ff3131;
+            border: 2px solid #ff3131;
+            background: rgba(255, 49, 49, 0.1);
+        }
+    
+        .time { font-size: 4rem; font-weight: bold; } /* Made bigger for 50vh cards */
+        .date { font-size: 1.5rem; opacity: 0.8; margin-top: 10px; }
+
+
+        .cursor-hand {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            width: 2px;
+            background: #00ff41;
+            transform-origin: bottom center;
+        }
+
+        .hour-hand { height: 45px; width: 6px; border-radius: 10px; }
+        .minute-hand { height: 75px; width: 4px; border-radius: 10px; }
+
+        /* The "Drips" */
+        .paint-line {
+            position: fixed;
+            height: 8px; /* Thickness of the paint */
+            border-radius: 4px; /* Keeps the ends rounded */
+            pointer-events: none;
+            z-index: 9998;
+            
+            /* THE FIX: Pivot exactly from the left edge, and 4px down (the exact center of your 8px height) */
+            transform-origin: 0px 4px; 
+            
+            animation: slow-paint-fade 4s ease-out forwards;
+        }
+
+        @keyframes slow-paint-fade {
+            0% { opacity: 1; margin-top: 0; }
+            /* The line slowly fades to invisible and sags downward like wet paint */
+            100% { opacity: 0; margin-top: 25px; } 
+        }
+
+        
+    </style>
+</head>
+<body>
+
+    <div id="clock-container"></div>
+    <div id="hour" class="cursor-hand hour-hand"></div>
+    <div id="minute" class="cursor-hand minute-hand"></div>
+
+    <script>
+        const container = document.getElementById('clock-container');
+        const clocks = [];
+    
+        // Creating 100 clocks as requested in your code snippet
+        for (let i = 0; i < 100; i++) {
+            let yearOffset, monthOffset, isPresent = false;
+    
+            if (i === 0) {
+                yearOffset = 0;
+                monthOffset = 0;
+                dayOffset = 0;
+                isPresent = true;
+            } else {
+                yearOffset = Math.floor(Math.random() * 4000) - 2000;
+                monthOffset = Math.floor(Math.random() * 12);
+                dayOffset = Math.floor(Math.random() * 60) - 30; // Keep it to 28 to avoid February issues
+            }
+            
+            const card = document.createElement('div');
+            card.className = 'clock-card';
+            if (isPresent) card.classList.add('present-time');
+            
+            const timeDisplay = document.createElement('div');
+            timeDisplay.className = 'time';
+            
+            const dateDisplay = document.createElement('div');
+            dateDisplay.className = 'date';
+            
+            card.appendChild(timeDisplay);
+            card.appendChild(dateDisplay);
+            container.appendChild(card);
+            
+            clocks.push({ timeDisplay, dateDisplay, yearOffset, dayOffset, monthOffset, isPresent });
+        }
+    
+        function updateClocks() {
+            const now = new Date();
+            clocks.forEach(clock => {
+                const warpedDate = new Date(now);
+                warpedDate.setFullYear(now.getFullYear() + clock.yearOffset);
+                warpedDate.setMonth(now.getMonth() + clock.monthOffset);
+                warpedDate.setDate(now.getDate() + (clock.dayOffset || 0)); // Apply the day shift
+    
+                clock.timeDisplay.textContent = now.toLocaleTimeString('en-US', {
+                    hour12: false, 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit'
+                });
+    
+                clock.dateDisplay.textContent = warpedDate.toLocaleDateString('en-US', {
+                    month: 'long',
+                    year: 'numeric',
+                    // Add day only for the present clock
+                    day: 'numeric'
+                });
+            });
+        }
+    
+        updateClocks();
+        setInterval(updateClocks, 1000);
+
+        const hour = document.getElementById('hour');
+    const minute = document.getElementById('minute');
+    
+    let cursorX = window.innerWidth / 2;
+    let cursorY = window.innerHeight / 2;
+    
+    // We need to track the last position to draw a line connecting them
+    let lastX = null;
+    let lastY = null;
+
+    document.addEventListener('mousemove', (e) => {
+        cursorX = e.clientX;
+        cursorY = e.clientY;
+
+        // If we have a previous position, draw a line from it to the new position
+        if (lastX !== null && lastY !== null) {
+            drawPaintLine(lastX, lastY, cursorX, cursorY);
+        }
+
+        // Update the last position for the next movement
+        lastX = cursorX;
+        lastY = cursorY;
+    });
+
+    // If the mouse leaves the screen, break the line so it doesn't draw a giant streak across the page when you come back
+    document.addEventListener('mouseleave', () => {
+        lastX = null;
+        lastY = null;
+    });
+
+    function drawPaintLine(x1, y1, x2, y2) {
+        // Calculate the distance and angle between the previous mouse spot and the current one
+        const distance = Math.hypot(x2 - x1, y2 - y1);
+        const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
+
+        const line = document.createElement('div');
+        line.className = 'paint-line';
+        
+        // Position the line segment
+        line.style.left = x1 + 'px';
+        line.style.top = (y1 - 4) + 'px'; // Offset the top by 4px to center the line vertically on the mouse path
+        
+        // Stretch it to cover the distance and rotate it to point to the new mouse spot
+        line.style.width = distance + 'px';
+        line.style.transform = `rotate(${angle}deg)`;
+        
+        // Keep the Matrix green, with an occasional red streak
+        line.style.backgroundColor = Math.random() > 0.95 ? '#ff3131' : '#00ff41';
+
+        document.body.appendChild(line);
+
+        // Clean up the line after the 4-second fade animation finishes
+        setTimeout(() => {
+            line.remove();
+        }, 4000);
+    }
+
+    // This is your existing code that keeps the giant hands spinning based on real time
+    function animateCursorClock() {
+        const now = new Date();
+        const h = now.getHours();
+        const m = now.getMinutes();
+
+        const hourAngle = (h % 12) * 30 + (m * 0.5); 
+        const minuteAngle = m * 6;
+
+        hour.style.left = cursorX + 'px';
+        hour.style.top = cursorY - 45 + 'px'; // Height offset for the big hour hand
+        
+        minute.style.left = cursorX + 'px';
+        minute.style.top = cursorY - 75 + 'px'; // Height offset for the big minute hand
+
+        hour.style.transform = `rotate(${hourAngle}deg)`;
+        minute.style.transform = `rotate(${minuteAngle}deg)`;
+
+        requestAnimationFrame(animateCursorClock);
+    }
+
+    animateCursorClock();
+    </script>
+</body>
+</html>
