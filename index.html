@@ -154,61 +154,16 @@
         const hour = document.getElementById('hour');
     const minute = document.getElementById('minute');
     
+    // Default to the center of the screen
     let cursorX = window.innerWidth / 2;
     let cursorY = window.innerHeight / 2;
-    
-    // We need to track the last position to draw a line connecting them
-    let lastX = null;
-    let lastY = null;
 
+    // Track the mouse for the hands
     document.addEventListener('mousemove', (e) => {
         cursorX = e.clientX;
         cursorY = e.clientY;
-
-        // If we have a previous position, draw a line from it to the new position
-        if (lastX !== null && lastY !== null) {
-            drawPaintLine(lastX, lastY, cursorX, cursorY);
-        }
-
-        // Update the last position for the next movement
-        lastX = cursorX;
-        lastY = cursorY;
     });
 
-    // If the mouse leaves the screen, break the line so it doesn't draw a giant streak across the page when you come back
-    document.addEventListener('mouseleave', () => {
-        lastX = null;
-        lastY = null;
-    });
-
-    function drawPaintLine(x1, y1, x2, y2) {
-        // Calculate the distance and angle between the previous mouse spot and the current one
-        const distance = Math.hypot(x2 - x1, y2 - y1);
-        const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
-
-        const line = document.createElement('div');
-        line.className = 'paint-line';
-        
-        // Position the line segment
-        line.style.left = x1 + 'px';
-        line.style.top = (y1 - 4) + 'px'; // Offset the top by 4px to center the line vertically on the mouse path
-        
-        // Stretch it to cover the distance and rotate it to point to the new mouse spot
-        line.style.width = distance + 'px';
-        line.style.transform = `rotate(${angle}deg)`;
-        
-        // Keep the Matrix green, with an occasional red streak
-        line.style.backgroundColor = Math.random() > 0.95 ? '#ff3131' : '#00ff41';
-
-        document.body.appendChild(line);
-
-        // Clean up the line after the 4-second fade animation finishes
-        setTimeout(() => {
-            line.remove();
-        }, 4000);
-    }
-
-    // This is your existing code that keeps the giant hands spinning based on real time
     function animateCursorClock() {
         const now = new Date();
         const h = now.getHours();
@@ -218,18 +173,87 @@
         const minuteAngle = m * 6;
 
         hour.style.left = cursorX + 'px';
-        hour.style.top = cursorY - 45 + 'px'; // Height offset for the big hour hand
+        hour.style.top = cursorY - 45 + 'px'; 
         
         minute.style.left = cursorX + 'px';
-        minute.style.top = cursorY - 75 + 'px'; // Height offset for the big minute hand
+        minute.style.top = cursorY - 75 + 'px'; 
 
         hour.style.transform = `rotate(${hourAngle}deg)`;
         minute.style.transform = `rotate(${minuteAngle}deg)`;
 
         requestAnimationFrame(animateCursorClock);
     }
-
     animateCursorClock();
+
+
+    // ==========================================
+    // 2. THE SMOOTH PAINT STROKE (p5.js)
+    // ==========================================
+    let paintSegments = [];
+
+    // p5.js Setup Function (Runs once)
+    function setup() {
+        // Create a canvas that fills the whole screen
+        let canvas = createCanvas(windowWidth, windowHeight);
+        
+        // Position it fixed over everything, but let clicks pass through
+        canvas.style('position', 'fixed');
+        canvas.style('top', '0');
+        canvas.style('left', '0');
+        canvas.style('pointer-events', 'none');
+        canvas.style('z-index', '9998'); // Just under the clock hands
+    }
+
+    // p5.js Draw Function (Runs 60 times per second)
+    function draw() {
+        // Clear the canvas every frame so we can see your HTML clocks behind it
+        clear();
+
+        // If the mouse is moving, record a new segment of paint
+        if (mouseX !== pmouseX || mouseY !== pmouseY) {
+            // Randomly choose green, or occasionally red
+            let strokeColor = random() > 0.95 ? color(255, 49, 49) : color(0, 255, 65);
+            
+            paintSegments.push({
+                x1: pmouseX, // pmouseX is p5's built-in "previous mouse X"
+                y1: pmouseY,
+                x2: mouseX,
+                y2: mouseY,
+                life: 255,   // Opacity starts at max (255)
+                color: strokeColor
+            });
+        }
+
+        // Draw and update all the paint segments
+        for (let i = paintSegments.length - 1; i >= 0; i--) {
+            let s = paintSegments[i];
+            
+            // Set the styling for the brush
+            stroke(red(s.color), green(s.color), blue(s.color), s.life);
+            strokeWeight(8);
+            strokeCap(ROUND); // Gives the line perfect, smooth rounded joints
+            
+            // Draw the line segment
+            line(s.x1, s.y1, s.x2, s.y2);
+            
+            // PHYSICS: Make the paint sag and fade
+            s.life -= 1.5; // Controls how fast it fades (lower = slower)
+            s.y1 += 0.3;   // Sags the start of the line down
+            s.y2 += 0.3;   // Sags the end of the line down
+            
+            // Remove the segment from memory once it fades out completely
+            if (s.life <= 0) {
+                paintSegments.splice(i, 1);
+            }
+        }
+    }
+
+    // p5.js Resize Function (Keeps canvas full screen if window changes)
+    function windowResized() {
+        resizeCanvas(windowWidth, windowHeight);
+
+    }
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
 </body>
 </html>
